@@ -16,4 +16,4 @@ colSums(data == 'unknown')
 # remove 'duration'
 data$duration <- NULL
 
-write.csv(data, "datasets\\data_outliers_remain.csv")
+write.csv(data, "datasets\\data_outliers_remain.csv", row.names = FALSE)
