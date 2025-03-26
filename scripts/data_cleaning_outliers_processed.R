@@ -47,4 +47,4 @@ data$campaign[data$campaign > severe_upper] <- severe_upper
 summary(data$campaign)
 
 # save data
-write.csv(data, "datasets\\data_outliers_processed.csv")
+write.csv(data, "datasets\\data_outliers_processed.csv", row.names = FALSE)
