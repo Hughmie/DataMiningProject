@@ -1,6 +1,7 @@
 library(dplyr)
 library(e1071)
 library(pROC)
+library(missForest)
 
 
 # load data
@@ -9,6 +10,7 @@ data <- read.csv("datasets/data_outliers_processed.csv", stringsAsFactors = FALS
 
 # inspect data
 glimpse(data)
+sapply(data, unique) # there are missing values "unknown"
 
 
 # categorical -> factor
@@ -18,6 +20,15 @@ cate_vars <- c("job","marital","education","default",
                             "day_of_week","poutcome", "y")
 data[cate_vars] <- lapply(data[cate_vars], factor)
 glimpse(data)
+
+
+# process missing values with missforest(after categorical -> factor)
+sapply(data, function(x) sum(x == "unknown"))
+data[data == "unknown"] <- NA
+
+set.seed(123)
+data_filled <- missForest(data)
+data <- data_filled$ximp
 
 
 # split data into train/test/val (0.5:0.25:0.25)
