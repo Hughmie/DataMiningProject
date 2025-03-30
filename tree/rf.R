@@ -1,69 +1,85 @@
 # coding: utf-8
 
-library(randomForest)  # 随机森林算法
-library(caret)        # 数据分割和模型评估
-library(ggplot2)      # 数据可视化
-library(dplyr)        # 数据操作
-library(ROCR)         # ROC曲线绘制
+library(randomForest)  
+library(caret)       
+library(ggplot2)      
+library(dplyr)        
+library(ROCR)         
 
+# Load and preprocess data
 data <- read.csv("group_23.csv", stringsAsFactors = TRUE)
 data <- data %>% select(-duration)
 data <- data %>% select(-pdays)
-# 查看数据结构
+
+# Check data structure
 str(data)
 
-# 将目标变量转换为因子
+# Convert target variable to factor
 data$y <- as.factor(data$y)
 
-# 检查类别分布（处理不平衡数据）
+# Check class distribution (Handle imbalanced data)
 table(data$y)
 prop.table(table(data$y))
 
 set.seed(0)
 
-# 创建训练集和测试集
+# Create training and test sets
 train_Index <- createDataPartition(data$y, p = 0.7, list = FALSE)
-train_Data <- data[trainIndex, ]
-test_Data <- data[-trainIndex, ]
+train_Data <- data[train_Index, ]
+test_Data <- data[-train_Index, ]
 
-# 检查分割后的类别分布
+# Check class distribution after splitting
 table(train_Data$y)
 table(test_Data$y)
 
+# Build Random Forest model
 rf_model <- randomForest(y ~ ., 
                          data = train_Data,
-                         ntree = 149,          # 树的数量
-                         mtry = sqrt(ncol(train_Data) - 1),  # 每棵树使用的特征数
-                         importance = TRUE,    # 计算特征重要性
-                         proximity = TRUE,     # 计算样本相似度
-                         strata = train_Data$y, # 用于分层抽样
+                         ntree = 149,          # Number of trees
+                         mtry = sqrt(ncol(train_Data) - 1),  # Features per tree
+                         importance = TRUE,    # Calculate feature importance
+                         proximity = TRUE,     # Calculate sample proximity
+                         strata = train_Data$y, # Stratified sampling
                          sampsize = c("no" = sum(train_Data$y == "no"), 
-                         "yes" = sum(train_Data$y == "yes"))) # 平衡样本大小
-              
-  
-# 查看模型摘要
+                                      "yes" = sum(train_Data$y == "yes"))) # Balance sample sizes
+
+# Display model summary
+cat("\nRandom Forest Model Summary:\n")
 print(rf_model)
-  
+
+# Generate predictions
 predictions <- predict(rf_model, test_Data)
-  
-# 混淆矩阵
-confusionMatrix(predictions, test_Data$y,positive = "yes")
-  
-# 计算预测概率（用于ROC曲线）
+
+# Evaluate performance with confusion matrix
+cat("\nConfusion Matrix:\n")
+print(confusionMatrix(predictions, test_Data$y, positive = "yes"))
+
+# Calculate class probabilities for ROC analysis
 predict_prob <- predict(rf_model, test_Data, type = "prob")[, "yes"]
-  
-# 创建预测对象
-pred <- prediction(predict_prob, test_Data$y)
-  
-# 计算性能指标
-perf <- performance(pred, "tpr", "fpr")
-  
-# 绘制ROC曲线
-plot(perf, colorize = TRUE, main = "ROC Curve for Random Forest")
-abline(a = 0, b = 1, lty = 2)
-  
-# 计算AUC值
-auc <- performance(pred, "auc")@y.values[[1]]
-cat("AUC:", auc, "\n")
-  
+
+# Create ROC object
+roc_obj <- roc(
+  response = test_Data$y,
+  predictor = predict_prob,
+  levels = c("no", "yes")
+)
+
+# Plot ROC curve with enhanced visualization
+plot(roc_obj, 
+     main = "ROC Curve for Random forest Model",
+     col = "blue",
+     lwd = 2,
+     print.auc = TRUE,
+     auc.polygon = TRUE,
+     auc.polygon.col = "lightblue",
+     print.thres = TRUE)
+
+# Add reference line
+
+
+# Display AUC with confidence interval
+cat("\nModel Performance Metrics:")
+cat("\nAUC:", round(auc(roc_obj), 3))
+cat("\n95% CI:", round(ci(roc_obj), 3))
+
   

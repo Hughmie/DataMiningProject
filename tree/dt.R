@@ -1,23 +1,24 @@
 # coding: utf-8
 
-# 加载包
-library(rpart)       # 用于构建决策树
-library(rpart.plot)  # 用于可视化决策树
-library(caret)       # 用于模型评估和数据处理
+# Load packages
+library(rpart)       
+library(rpart.plot)  
+library(caret)       
 library(dplyr)
 library(ROSE)
+library(pROC) 
 
-# 读取数据
+# Read data
 data <- read.csv("group_23.csv", stringsAsFactors = TRUE)
-#删除 duration列
+# Remove duration column
 data <- data %>% select(-duration)
 data <- data %>% select(-pdays)
-# 检查缺失值
+# Check missing values
 col_na <- colSums(is.na(data))
-print("各列缺失值数量:")
+print("Number of missing values per column:")
 print(colSums(is.na(data)))
 
-# 四分位异常值
+# IQR Outlier Detection
 outlier_iqr <- function(x) {
   Q <- quantile(x, probs=c(0.25, 0.75), na.rm=TRUE)
   iqr <- IQR(x, na.rm=TRUE)
@@ -29,63 +30,44 @@ outlier_iqr <- function(x) {
 outliers <- outlier_iqr(data$campaign)
 max(data$campaign)
 
-
-
-# 检查数据结构
+# Check data structure
 str(data)
 
-### 数据处理
-# 将y列转换为因子（如果是分类问题）
+### Data Processing
+# Convert y column to factor (for classification problems)
 data$y <- as.factor(data$y)
 
-
-#for(col in names(data)){
-#  cat("\nColumn:", col, "\n")
-#  print(table(data[[col]]))
-#}
-
-# 检查类别分布
+# Check class distribution
 table(data$y)
 
-# 分割数据为训练集和测试集
-set.seed(0) # 确保结果可重现
+# Split data into training and test sets
+set.seed(0) # Ensure reproducibility
 train_index <- createDataPartition(data$y, p = 0.7, list = FALSE)
 train_data <- data[train_index, ]
 test_data <- data[-train_index, ]
 
-# 超采样
+# Oversampling
 balanced_train_data <- ovun.sample(y ~ ., data = train_data, method = "over", N = 12410)$data
 table(balanced_train_data$y)
-#loss_matrix <- matrix(c(0, 1, 5, 0), nrow = 2)
+# loss_matrix <- matrix(c(0, 1, 5, 0), nrow = 2)
 
-
-# 构建决策树模型
+# Build decision tree model
 tree_model <- rpart(y ~ ., 
                     data = balanced_train_data, 
-                    method = "class", # 用于分类
-                    parms = list(split = "information"), # 使用信息增益
-                    control = rpart.control(minsplit = 20, # 节点最小样本数
-                                            minbucket = 200,  # 叶节点最小样本数
-                                            maxdepth = 5,   # 树的最大深度
-                                            cp = 0.001))     # 复杂度参数
+                    method = "class", # For classification
+                    parms = list(split = "information"), # Use information gain
+                    control = rpart.control(minsplit = 20, # Minimum samples per node
+                                            minbucket = 200,  # Minimum samples per leaf
+                                            maxdepth = 5,   # Maximum tree depth
+                                            cp = 0.001))     # Complexity parameter
 test_pred <- predict(tree_model, test_data, type = "class")
-confusionMatrix(test_pred, test_data$y,positive = "yes")
-#tree_model <- rpart(y ~ ., data = balanced_train_data, 
-                      #method = "class",parms = list(split = "information", 
-                      #loss = loss_matrix),control = rpart.control(minsplit = 5,
-                      #minbucket = 2, maxdepth = 10, cp = 0.0001))
+confusionMatrix(test_pred, test_data$y, positive = "yes")
 
-
-
-
-
-
-
-# 查看模型摘要
+# View model summary
 print(tree_model)
 summary(tree_model)
 
-# 可视化决策树
+# Visualize decision tree
 rpart.plot(tree_model, 
            type = 4, 
            extra = 104, 
@@ -94,18 +76,18 @@ rpart.plot(tree_model,
            shadow.col = "gray", 
            nn = TRUE)
 
-# 在训练集上评估模型
+# Evaluate model on training set
 train_pred <- predict(tree_model, train_data, type = "class")
-confusionMatrix(train_pred, train_data$y,positive = "yes")
+confusionMatrix(train_pred, train_data$y, positive = "yes")
 
-# 在测试集上评估模型
+# Evaluate model on test set
 test_pred <- predict(tree_model, test_data, type = "class")
-confusionMatrix(test_pred, test_data$y,positive = "yes")
+confusionMatrix(test_pred, test_data$y, positive = "yes")
 
 test_pred_prob <- predict(tree_model, test_data, type = "prob")[, "yes"]
 roc_obj <- roc(test_data$y, test_pred_prob, levels = c("no", "yes"))
 
-# 绘制ROC曲线
+# Plot ROC curve
 plot(roc_obj, 
      main = "ROC Curve for Decision Tree Model",
      col = "blue",
@@ -115,26 +97,24 @@ plot(roc_obj,
      auc.polygon.col = "lightblue",
      print.thres = TRUE)
 
-# 计算AUC值
+# Calculate AUC value
 auc_value <- auc(roc_obj)
-cat("AUC值:", auc_value, "\n")
+cat("AUC value:", auc_value, "\n")
 
-
-# 查看变量重要性
+# View variable importance
 tree_model$variable.importance
 
-# 绘制CP表格以选择最佳剪枝
+# Plot CP table for pruning
 plotcp(tree_model)
 
-# 剪枝（如果需要）
+# Prune tree (if needed)
 # pruned_tree <- prune(tree_model, cp = tree_model$cptable[which.min(tree_model$cptable[,"xerror"]),"CP"])
 # rpart.plot(pruned_tree)
-
 
 test_pred <- predict(tree_model, test_data, type = "prob")[, "yes"]
 roc_obj <- roc(test_data$y, test_pred, levels = c("no", "yes"))
 
-# 绘制ROC曲线
+# Plot ROC curve
 plot(roc_obj, 
      main = "ROC Curve for Decision Tree Model",
      col = "blue",
@@ -144,7 +124,4 @@ plot(roc_obj,
      auc.polygon.col = "lightblue",
      print.thres = TRUE)
 
-# 计算AUC值
-auc_value <- auc(roc_obj)
-cat("AUC值:", auc_value, "\n")
 
